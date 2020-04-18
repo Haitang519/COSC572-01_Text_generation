@@ -120,3 +120,4 @@ if __name__ == "__main__":
     word_model.describe_data(word_model.batch_generator_lm(train_data))
     word_model.build()
     word_model.train()
+    word_model.generate_text("Someone likes adventure")
