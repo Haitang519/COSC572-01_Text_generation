@@ -1,3 +1,5 @@
+from collections import Counter
+
 import pandas as pd
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
@@ -7,7 +9,10 @@ import re
 import numpy as np
 from constractions import contractions
 
+
 VALIDATION_SPLIT = 0.1
+PAD = '[PAD]'
+
 
 def clean_plot(plot, remove_stopwords, lemma):
     # lowercase
@@ -40,22 +45,36 @@ def clean_plot(plot, remove_stopwords, lemma):
     return plot
 
 
-def get_data(plots, remove_stopwords=True, lemma=True):
+def get_data(df_plots, remove_stopwords=True, lemma=True):
+    vocabs = Counter()
+    plots_list = []
+    for plot in df_plots['Plot']:
+        plot = clean_plot(plot, remove_stopwords, lemma)
+        plots_list.append(plot)
+        tokens = plot.strip().split(' ')
+        for token in tokens:
+            vocabs[token] += 1
+
     data = []
     word_index = {}
     index = 0
     lens = []
-    for plot in plots['Plot']:
+    for plot in plots_list:
         length = 0
-        plot = clean_plot(plot, remove_stopwords, lemma)
-        data.append(plot)
         plot_words = plot.strip().split(' ')
+        new_plot = []
         for word in plot_words:
             length += 1
-            if word not in word_index:
-                word_index[word] = index
-                index += 1
+            if vocabs[word] != 1:
+                new_plot.append(word)
+                if word not in word_index:
+                    word_index[word] = index
+                    index += 1
+            else:
+                new_plot.append(PAD)
+        data.append(" ".join(new_plot))
         lens.append(length)
+    word_index[PAD] = index
 
     # calculate the upper bound of length of sentence
     lens.sort()
@@ -63,14 +82,17 @@ def get_data(plots, remove_stopwords=True, lemma=True):
     Q1 = lens[int((n+1)/4)]
     Q3 = lens[int(3*(n + 1)/4)]
     MAX_SEQUENCE_LENGTH = int(Q3 + 1.5 * (Q3 - Q1))
+    # MAX_SEQUENCE_LENGTH = int(Q3)
+
+    print(data)
 
     return data, word_index, MAX_SEQUENCE_LENGTH
 
 
 if __name__ == "__main__":
-    plots = pd.read_csv("wiki_movie_plots_deduped.csv", sep=',', encoding='latin1')
+    df_plots = pd.read_csv("wiki_movie_plots_deduped.csv", sep=',', encoding='latin1')
 
-    data, word_index, MAX_SEQUENCE_LENGTH = get_data(plots)
+    data, word_index, MAX_SEQUENCE_LENGTH = get_data(df_plots)
 
     tokenizer = Tokenizer()
     tokenizer.fit_on_texts(data)
@@ -93,8 +115,7 @@ if __name__ == "__main__":
     val_data = arr[-num_validation_samples:]
 
     # save data into file
-    np.savez_compressed('save/data.npz', train=train_data, val=val_data, length=MAX_SEQUENCE_LENGTH)
+    np.savez_compressed('save/data.npz', train=train_data, val=val_data, length=MAX_SEQUENCE_LENGTH, data=np.array(data))
     f = open('save/word_index.txt', 'w')
     f.write(str(word_index))
     f.close()
-
