@@ -1,13 +1,20 @@
 import os
 import numpy as np
+import random
 from keras.utils import to_categorical
 from keras.initializers import Constant
 from keras.layers import Embedding, LSTM, Dense, TimeDistributed
-from keras.models import Sequential
-from preprocess import tokenizer
-from keras.preprocessing.sequence import pad_sequences
+from keras.models import Sequential, load_model
+from keras.callbacks import ModelCheckpoint, Callback, LambdaCallback
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
+END = '[END]'
+
+
+def on_epoch_end(self, epoch, logs=None):
+    word_model.eval()
+    for i in range(0,10):
+        word_model.generate_text("someone like adventure")
 
 
 class WordModel:
@@ -19,7 +26,7 @@ class WordModel:
         self.embedding_size = 100
         self.hidden_size = 10
         self.dropout = 0.3
-        self.epochs = 3
+        self.epochs = 5
         self.batch_size = 10
 
     def load_pretrained_embeddings(self, glove_file):
@@ -49,11 +56,10 @@ class WordModel:
         while True:
             batch_x = []
             batch_y = []
-            X, Y = data[:, :-1], data[:, -1]
-            Y = to_categorical(Y, num_classes=(len(word_index)))
-            for i in range(X.shape[0]):
-                batch_x.append(X[i])
-                batch_y.append(Y[i])
+            for sent in data:
+                batch_x.append(sent)
+                batch_y.append(
+                    [to_categorical(token, num_classes=(len(self.word_index))) for token in self.shift_by_one(sent)])
                 if len(batch_x) >= self.batch_size:
                     yield np.array(batch_x), np.array(batch_y)
                     batch_x = []
@@ -70,37 +76,61 @@ class WordModel:
 
     def build(self):
         embedding_matrix = self.load_pretrained_embeddings('glove.6B/glove.6B.100d.txt')
-        self.model.add(Embedding(len(word_index), self.embedding_size, input_length=self.sentence_length-1,
+        self.model.add(Embedding(len(self.word_index), self.embedding_size,
                                  embeddings_initializer=Constant(embedding_matrix)))
-        self.model.add(LSTM(self.hidden_size, dropout=self.dropout))
-        self.model.add(Dense(121109, activation='softmax', input_dim=len(self.word_index), use_bias=True))
+        self.model.add(LSTM(self.hidden_size, dropout=self.dropout, return_sequences=True))
+        self.model.add(
+            TimeDistributed(
+                Dense(len(self.word_index), activation='softmax', input_dim=len(self.word_index), use_bias=True),
+                input_shape=(self.batch_size, self.sentence_length)))
 
         print(self.model.summary())
 
-    def train(self):
         self.model.compile(optimizer='adadelta', loss='categorical_crossentropy', metrics=['accuracy'])
+
+    def train(self):
+        # save the model after each epoch
+        weights = ModelCheckpoint(filepath='//save/model.h5')
+        print_callback = LambdaCallback(on_epoch_end=on_epoch_end)
 
         # Training
         self.model.fit_generator(self.batch_generator_lm(train_data),
-                                 epochs=self.epochs, steps_per_epoch=len(train_data) / self.batch_size)
+                                 epochs=self.epochs,
+                                 steps_per_epoch=len(train_data) / self.batch_size,
+                                 callbacks=[print_callback, weights])
 
+    def eval(self):
         # Evaluation
         loss, acc = self.model.evaluate_generator(self.batch_generator_lm(val_data), steps=len(val_data))
         print('Dev Loss:', loss, 'Dev Acc:', acc)
 
+    def resume(self):
+        self.model = load_model('save/model.h5')
+        print(self.model.summary())
+        result = False
+        if not result:
+          self.train()
+        else:
+          for i in range(0,10):
+            word_model.generate_text("someone like adventure")
+
     def generate_text(self, seed_text):
         prediction = seed_text.split(' ')
-        while len(prediction) <= 100:
-            token_list = tokenizer.texts_to_sequences([seed_text])[0]
-            token_list = pad_sequences([token_list], maxlen=self.sentence_length, padding='pre')
-            predicted = self.model.predict_classes(token_list, verbose=0)
-
-            output_word = ""
-            for word, index in tokenizer.word_index.items():
-                if index == predicted:
-                    output_word = word
+        while not (prediction[-1] == END or len(prediction) >= 50):
+            next_token_one_hot = self.model.predict(np.array([[self.word_index[p] for p in prediction]]), batch_size=1)[0][-1]
+            threshold = random.random()
+            sum = 0
+            next_token = 0
+            for i, p in enumerate(next_token_one_hot):
+                sum += p
+                if sum > threshold:
+                    next_token = i
                     break
-            prediction.append(output_word)
+            for w, i in self.word_index.items():
+                if i == next_token:
+                    prediction.append(w)
+                    break
+        print(" ".join(prediction))
         return prediction
 
 
@@ -111,13 +141,19 @@ def load_data():
     word_dict = eval(f.read())
     f.close()
 
-    return data['train'], data['val'], int(data['length']), word_dict
+    return data['train'], data['val'], int(data['length']), data['data'].tolist(), word_dict
 
 
 if __name__ == "__main__":
-    train_data, val_data, length, word_index = load_data()
+    train_data, val_data, length, original_data, word_index = load_data()
     word_model = WordModel(length, word_index)
     word_model.describe_data(word_model.batch_generator_lm(train_data))
-    word_model.build()
-    word_model.train()
-    word_model.generate_text("Someone likes adventure")
+
+    # train or resume train
+    if not os.path.exists('save/model.h5'):
+        print('<==========| Data preprocessing... |==========>')
+        word_model.build()
+        word_model.train()
+    else:
+        print('<==========| Resume from last training... |==========>')
+        word_model.resume()
