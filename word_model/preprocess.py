@@ -12,6 +12,8 @@ from constractions import contractions
 
 VALIDATION_SPLIT = 0.1
 PAD = '[PAD]'
+END = '[END]'
+UNI = '[UNI]'
 
 
 def clean_plot(plot, remove_stopwords, lemma):
@@ -21,7 +23,14 @@ def clean_plot(plot, remove_stopwords, lemma):
     plot = re.sub('\[\d*\]', '', plot)
     plot = re.sub('\ \ *', ' ', plot)
     # remove non-letter characters
-    plot = re.sub(r"[^a-zA-Z]+", r" ", plot)
+    # plot = re.sub(r"[^a-zA-Z]+", r" ", plot)
+    r1 = r'(,|\.|/|;|\'|`|\[|\]|<|>|\?|:|"|\{|\}|\~|!|@|#|\$|%|\^|&|\(|\)|-|=|\_|\+|，|。|、|；|‘|’|【|】|·|！| |…|（|）)'
+    plot = re.split(r1, plot)
+    new_plot = []
+    for token in plot:
+        if token != " ":
+            new_plot.append(token)
+    plot = " ".join(new_plot)
 
     # expand contraction
     wnl = WordNetLemmatizer()
@@ -45,19 +54,18 @@ def clean_plot(plot, remove_stopwords, lemma):
     return plot
 
 
-def get_data(df_plots, remove_stopwords=True, lemma=True):
+def get_data(df_plots, remove_stopwords=False, lemma=True):
     vocabs = Counter()
     plots_list = []
     for plot in df_plots['Plot']:
         plot = clean_plot(plot, remove_stopwords, lemma)
+        plot = plot + ' ' + END
         plots_list.append(plot)
         tokens = plot.strip().split(' ')
         for token in tokens:
             vocabs[token] += 1
 
     data = []
-    word_index = {}
-    index = 0
     lens = []
     for plot in plots_list:
         length = 0
@@ -65,16 +73,13 @@ def get_data(df_plots, remove_stopwords=True, lemma=True):
         new_plot = []
         for word in plot_words:
             length += 1
-            if vocabs[word] != 1:
+            if vocabs[word] > 15:
                 new_plot.append(word)
-                if word not in word_index:
-                    word_index[word] = index
-                    index += 1
             else:
-                new_plot.append(PAD)
+                new_plot.append(UNI)
         data.append(" ".join(new_plot))
         lens.append(length)
-    word_index[PAD] = index
+
 
     # calculate the upper bound of length of sentence
     lens.sort()
@@ -84,21 +89,24 @@ def get_data(df_plots, remove_stopwords=True, lemma=True):
     MAX_SEQUENCE_LENGTH = int(Q3 + 1.5 * (Q3 - Q1))
     # MAX_SEQUENCE_LENGTH = int(Q3)
 
-    print(data)
-
-    return data, word_index, MAX_SEQUENCE_LENGTH
+    return data
 
 
 if __name__ == "__main__":
     df_plots = pd.read_csv("wiki_movie_plots_deduped.csv", sep=',', encoding='latin1')
 
-    data, word_index, MAX_SEQUENCE_LENGTH = get_data(df_plots)
+    data = get_data(df_plots)
+    # print(data)
+    MAX_SEQUENCE_LENGTH = 300
 
-    tokenizer = Tokenizer()
+    tokenizer = Tokenizer(filters='()\t\n', oov_token='[UNK]')
     tokenizer.fit_on_texts(data)
     sequences = tokenizer.texts_to_sequences(data)
+    # print(sequences)
 
     word_index = tokenizer.word_index
+    word_index[PAD] = 0
+    # print(word_index)
     print('Found %s unique tokens.' % len(word_index))
 
     encode_data = pad_sequences(sequences, maxlen=MAX_SEQUENCE_LENGTH)
