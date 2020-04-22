@@ -8,7 +8,7 @@ from keras.models import Sequential, load_model
 from keras.callbacks import ModelCheckpoint, Callback, LambdaCallback
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
-END = '[END]'
+END = '[end]'
 
 
 def on_epoch_end(self, epoch, logs=None):
