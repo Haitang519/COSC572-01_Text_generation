@@ -18,19 +18,10 @@ UNI = '[UNI]'
 
 def clean_plot(plot, remove_stopwords, lemma):
     # lowercase
-    plot = plot.lower()
+    plot = str(plot).lower()
     # remove cite notation eg.[1]
     plot = re.sub('\[\d*\]', '', plot)
     plot = re.sub('\ \ *', ' ', plot)
-    # remove non-letter characters
-    # plot = re.sub(r"[^a-zA-Z]+", r" ", plot)
-    r1 = r'(,|\.|/|;|\'|`|\[|\]|<|>|\?|:|"|\{|\}|\~|!|@|#|\$|%|\^|&|\(|\)|-|=|\_|\+|，|。|、|；|‘|’|【|】|·|！| |…|（|）)'
-    plot = re.split(r1, plot)
-    new_plot = []
-    for token in plot:
-        if token != " ":
-            new_plot.append(token)
-    plot = " ".join(new_plot)
 
     # expand contraction
     wnl = WordNetLemmatizer()
@@ -43,6 +34,15 @@ def clean_plot(plot, remove_stopwords, lemma):
             if lemma:
                 word = wnl.lemmatize(word)
             new_plot.append(word)
+    plot = " ".join(new_plot)
+
+    # split word and punctuation
+    r1 = r'(,|\.|/|;|\'|`|\[|\]|<|>|\?|:|"|\{|\}|\~|!|@|#|\$|%|\^|&|\(|\)|-|=|\_|\+|，|。|、|；|‘|’|【|】|·|！| |…|（|）)'
+    plot = re.split(r1, plot)
+    new_plot = []
+    for token in plot:
+        if token != " ":
+            new_plot.append(token)
     plot = " ".join(new_plot)
 
     # remove stopwords
@@ -87,7 +87,11 @@ def get_data(df_plots, remove_stopwords=False, lemma=True):
     Q1 = lens[int((n+1)/4)]
     Q3 = lens[int(3*(n + 1)/4)]
     MAX_SEQUENCE_LENGTH = int(Q3 + 1.5 * (Q3 - Q1))
+    print(MAX_SEQUENCE_LENGTH)
     # MAX_SEQUENCE_LENGTH = int(Q3)
+    print(sum(lens)/len(lens))
+    print(min(lens))
+    print(max(lens))
 
     return data
 
