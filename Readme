@@ -1,0 +1,4 @@
+Project: Movie plot generation
+Jiexin Kong, Yanchen Wang, Jiaxu Shao
+
+Our project contains three models: character level RNN, word level RNN and BERT. There is a separate readme file in each of the folders to describe how to run the code and required files. 
