@@ -1,7 +1,7 @@
 from __future__ import print_function
 from keras.callbacks import LambdaCallback
 from keras.models import Sequential,load_model
-from keras.layers import Dense, Dropout
+from keras.layers import Dense, Dropout, TimeDistributed
 from keras.layers import LSTM
 from keras.optimizers import RMSprop
 from keras.utils.data_utils import get_file
