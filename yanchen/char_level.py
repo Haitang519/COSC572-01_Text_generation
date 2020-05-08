@@ -87,9 +87,9 @@ maxlen = args.maxlen
 sentences = []
 next_chars = []
 step = 1
-for i in range(0, len(data) - args.maxlen, step):
-    sentences.append(data[i: i + args.maxlen])
-    next_chars.append(data[i + args.maxlen])
+for i in range(0, len(data) - maxlen, step):
+    sentences.append(data[i: i + maxlen])
+    next_chars.append(data[i + maxlen])
 print('nb sequences:', len(sentences))
 
 def one_hot_encode_label(label, vocab):
@@ -189,32 +189,7 @@ def on_epoch_end(epoch, _):
             sys.stdout.flush()
         print()
 
-    print()
-    print('----- Generating another text after Epoch: %d' % epoch)
-
-    rand_index = random.randint(0, 50)
-    for diversity in [0.2, 0.5, 1.0, 1.2]:
-        print('----- diversity:', diversity)
-
-        generated = ''
-        sentence = test_data[rand_index][:maxlen]
-        generated += sentence
-        print('----- Generating with seed: "' + sentence + '"')
-        sys.stdout.write(generated)
-        for i in range(400):
-            x_pred = np.zeros((1, maxlen, vocab_size))
-            for t, char in enumerate(sentence):
-                x_pred[0, t, char2index[char]] = 1.
-
-            preds = model.predict(x_pred, verbose=0)[0]
-            next_index = sample(preds, diversity)
-            next_char = index2char[next_index]
-
-            sentence = sentence[1:] + next_char
-
-            sys.stdout.write(next_char)
-            sys.stdout.flush()
-        print()
+    
 weights = ModelCheckpoint(filepath = 'model.h5')
 print_callback = LambdaCallback(on_epoch_end=on_epoch_end)
 
@@ -228,13 +203,13 @@ print_callback = LambdaCallback(on_epoch_end=on_epoch_end)
 
 print('Build model...')
 model = Sequential()
-model.add(LSTM(args.hidden_size, input_shape=(args.maxlen, vocab_size),return_sequences=True))
+model.add(LSTM(args.hidden_size, input_shape=(maxlen, vocab_size),return_sequences=True))
 model.add(Dropout(args.dropout))
 model.add(LSTM(args.hidden_size, return_sequences=True))
 model.add(Dropout(args.dropout))
 model.add(LSTM(args.hidden_size, return_sequences=True))
 model.add(Dropout(args.dropout))
-model.add(LSTM(args.hidden_size))
+model.add(LSTM(args.hidden_size, return_sequences=True))
 model.add(Dropout(args.dropout))
 model.add(TimeDistributed(Dense(vocab_size, activation='softmax')))
 
