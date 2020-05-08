@@ -11,10 +11,11 @@ os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 END = '[end]'
 
 
-def on_epoch_end(self, epoch, logs=None):
+def on_epoch_end():
     word_model.eval()
-    for i in range(0,10):
-        word_model.generate_text("someone like adventure")
+    for i in range(0, 10):
+        prediction = word_model.generate_text("someone like adventure")
+        print(prediction)
 
 
 class WordModel:
@@ -23,11 +24,11 @@ class WordModel:
         self.model = Sequential()
         self.word_index = word_index
         self.sentence_length = length
-        self.embedding_size = 100
-        self.hidden_size = 10
+        self.embedding_size = 200
+        self.hidden_size = 20
         self.dropout = 0.3
         self.epochs = 5
-        self.batch_size = 10
+        self.batch_size = 20
 
     def load_pretrained_embeddings(self, glove_file):
         embeddings_index = {}
@@ -75,22 +76,26 @@ class WordModel:
         print('Batch output shape:', batch_y.shape)
 
     def build(self):
-        embedding_matrix = self.load_pretrained_embeddings('glove.6B/glove.6B.100d.txt')
+        embedding_matrix = self.load_pretrained_embeddings('glove.6B/glove.6B.200d.txt')
         self.model.add(Embedding(len(self.word_index), self.embedding_size,
                                  embeddings_initializer=Constant(embedding_matrix)))
-        self.model.add(LSTM(self.hidden_size, dropout=self.dropout, return_sequences=True))
+        self.model.add(
+            LSTM(self.hidden_size, dropout=self.dropout, return_sequences=True, kernel_initializer='he_normal'))
+        self.model.add(
+            LSTM(self.hidden_size, dropout=self.dropout, return_sequences=True, kernel_initializer='he_normal'))
         self.model.add(
             TimeDistributed(
-                Dense(len(self.word_index), activation='softmax', input_dim=len(self.word_index), use_bias=True),
+                Dense(len(self.word_index), activation='softmax', input_dim=len(self.word_index), use_bias=True,
+                      kernel_initializer='he_normal'),
                 input_shape=(self.batch_size, self.sentence_length)))
 
         print(self.model.summary())
 
-        self.model.compile(optimizer='adadelta', loss='categorical_crossentropy', metrics=['accuracy'])
+        self.model.compile(optimizer='RMSprop', loss='categorical_crossentropy', metrics=['accuracy'])
 
     def train(self):
         # save the model after each epoch
-        weights = ModelCheckpoint(filepath='//save/model.h5')
+        weights = ModelCheckpoint(filepath='save/model.h5')
         print_callback = LambdaCallback(on_epoch_end=on_epoch_end)
 
         # Training
@@ -107,17 +112,56 @@ class WordModel:
     def resume(self):
         self.model = load_model('save/model.h5')
         print(self.model.summary())
-        result = False
+        result = True
         if not result:
-          self.train()
+            self.train()
         else:
-          for i in range(0,10):
-            word_model.generate_text("someone like adventure")
+            while True:
+                print("*************************************************************")
+                print("You can choose or input your seed text to generate movie plot")
+                print("1. a bartender is working at")
+                print("2. the earliest known adaptation of")
+                print("3. the film open with two bandit")
+                print("4. a thug accosts a girl")
+                print("5. the story deal with tom")
+                print("6. Please input your own seed text:")
+                print("7. EXIT")
+                choice = input("Please input your choice:")
+                seed = ''
+                if choice == "1":
+                    seed = 'a bartender is working at'
+                elif choice == "2":
+                    seed = 'the earliest known adaptation of'
+                elif choice == "3":
+                    seed = 'the film open with two bandit'
+                elif choice == "4":
+                    seed = 'a thug accosts a girl'
+                elif choice == "5":
+                    seed = 'the story deal with tom'
+                elif choice == "6":
+                    seed = input("(if the word not in the model word list, it will be changed to [uni]):")
+                elif choice == "7":
+                    break
+                else:
+                    print("Please input a valid choice number!")
+                new_seed = []
+                for w in seed.split():
+                    if w in word_index:
+                        new_seed.append(w)
+                    else:
+                        new_seed.append("[uni]")
+                seed = " ".join(new_seed)
+
+                for i in range(0, 5):
+                    prediction = word_model.generate_text(seed)
+                    print(i, prediction)
+
 
     def generate_text(self, seed_text):
         prediction = seed_text.split(' ')
         while not (prediction[-1] == END or len(prediction) >= 50):
-            next_token_one_hot = self.model.predict(np.array([[self.word_index[p] for p in prediction]]), batch_size=1)[0][-1]
+            next_token_one_hot = \
+            self.model.predict(np.array([[self.word_index[p] for p in prediction]]), batch_size=1)[0][-1]
             threshold = random.random()
             sum = 0
             next_token = 0
@@ -130,8 +174,8 @@ class WordModel:
                 if i == next_token:
                     prediction.append(w)
                     break
-        print(" ".join(prediction))
-        return prediction
+
+        return " ".join(prediction)
 
 
 def load_data():
