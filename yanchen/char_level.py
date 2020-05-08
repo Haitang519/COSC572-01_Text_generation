@@ -12,12 +12,25 @@ import sys
 import io
 import re
 import os
+import argparse
+
 import pandas as pd 
 from collections import Counter
 from sklearn.model_selection import train_test_split
-data_path = 'wiki_movie_plots_deduped.csv'
+
+
+args = argparse.ArgumentParser(description='Program description.')
+args.add_argument('-lr','--learning-rate', default=0.01, type=float, help='Learning rate')
+args.add_argument('-e','--epochs', default=10, type=int, help='Number of epochs')
+args.add_argument('-do','--dropout', default=0.2, type=int, help='Dropout rate')
+args.add_argument('-hs','--hidden-size', default=1000, type=int, help='Hidden layer size')
+args.add_argument('-b','--batch-size', default=30, type=int, help='Maximum character sequence length')
+args.add_argument('-m','--maxlen', default=40, type=int, help='Batch Size')
+args = args.parse_args()
+
+
+data_path = '../data/wiki_movie_plots_deduped.csv'
 df = pd.read_csv(data_path)
-df = df.loc[df['Release Year']>2005,:]
 vocab = Counter()
 data = []
 
@@ -45,18 +58,10 @@ for line in df.Plot:
 alphabet = "abcdefghijklmnopqrstuvwxyz0123456789,;.!?:'\"/|_@#$%&+-=<>()[]{}"
 OTHERS = '¿'
 alphabet = alphabet + OTHERS + ' '
-# remove reference notes like [1]
 
-# for v in alphabet:
-#     vocab[v] = 0
-# vocab[UNK] = 0
 for sent in data:
     for c in sent:
         vocab[c] +=1
-    # if c in set(alphabet):
-    #     vocab[c] +=1
-    # else:
-    #     vocab[UNK] +=1
 UNK_char = set(vocab) - set(alphabet) - {' '}
 vocab_new = Counter()
 vocab_new[' '] = 0
@@ -67,11 +72,9 @@ vocab_new[' '] = vocab[' ']
 for c in UNK_char:
     vocab_new[OTHERS] += vocab[c]
 for c in UNK_char:
-    # print(c)
     data = [i.replace(c,OTHERS) for i in data]
 vocab_new = sorted(list(vocab_new))
 data, test_data = train_test_split(data,test_size = 500)
-# data = data[:3000]
 data = ''.join(data)
 vocab = vocab_new
 char2index = {k:v for v,k in enumerate(vocab_new)}
@@ -79,27 +82,14 @@ index2char = {v:k for v,k in enumerate(vocab_new)}
 
 vocab_size = len(vocab_new)
 
-
-# path = get_file(
-#     'nietzsche.txt',
-#     origin='https://s3.amazonaws.com/text-datasets/nietzsche.txt')
-# with io.open(path, encoding='utf-8') as f:
-#     text = f.read().lower()
-# print('corpus length:', len(text))
-
-# chars = sorted(list(set(text)))
-# print('total chars:', len(chars))
-# char_indices = dict((c, i) for i, c in enumerate(chars))
-# indices_char = dict((i, c) for i, c in enumerate(chars))
-
 # cut the text in semi-redundant sequences of maxlen characters
-maxlen = 40
-step = 1
+maxlen = args.maxlen
 sentences = []
 next_chars = []
-for i in range(0, len(data) - maxlen, step):
-    sentences.append(data[i: i + maxlen])
-    next_chars.append(data[i + maxlen])
+step = 1
+for i in range(0, len(data) - args.maxlen, step):
+    sentences.append(data[i: i + args.maxlen])
+    next_chars.append(data[i + args.maxlen])
 print('nb sequences:', len(sentences))
 
 def one_hot_encode_label(label, vocab):
@@ -238,21 +228,25 @@ print_callback = LambdaCallback(on_epoch_end=on_epoch_end)
 
 print('Build model...')
 model = Sequential()
-model.add(LSTM(200, input_shape=(maxlen, vocab_size),return_sequences=True))
-model.add(Dropout(0.2))
-model.add(LSTM(200))
-model.add(Dropout(0.2))
-model.add(Dense(vocab_size, activation='softmax'))
+model.add(LSTM(args.hidden_size, input_shape=(args.maxlen, vocab_size),return_sequences=True))
+model.add(Dropout(args.dropout))
+model.add(LSTM(args.hidden_size, return_sequences=True))
+model.add(Dropout(args.dropout))
+model.add(LSTM(args.hidden_size, return_sequences=True))
+model.add(Dropout(args.dropout))
+model.add(LSTM(args.hidden_size))
+model.add(Dropout(args.dropout))
+model.add(TimeDistributed(Dense(vocab_size, activation='softmax')))
 
-optimizer = RMSprop(learning_rate=0.01)
+optimizer = RMSprop(learning_rate=args.learning_rate)
 model.compile(loss='categorical_crossentropy', optimizer=optimizer)
 
 
 if not os.path.exists('model.h5'):
-    model.fit_generator(batch_generator_lm(sentences, next_chars,char2index,30),
-                             epochs=60, steps_per_epoch=len(sentences)/30,callbacks=[print_callback,weights])
+    model.fit_generator(batch_generator_lm(sentences, next_chars,char2index,args.batch_size),
+                             epochs=args.epochs, steps_per_epoch=len(sentences)/args.batch_size,callbacks=[print_callback,weights])
 else:
     model = load_model('model.h5')
     print(model.summary())
-    model.fit_generator(batch_generator_lm(sentences, next_chars,char2index,30),
-                             epochs=60, steps_per_epoch=len(sentences)/30,callbacks=[print_callback,weights])
+    model.fit_generator(batch_generator_lm(sentences, next_chars,char2index,args.batch_size),
+                             epochs=args.epochs, steps_per_epoch=len(sentences)/args.batch_size,callbacks=[print_callback,weights])

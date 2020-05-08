@@ -1,0 +1,9 @@
+This part of the code is for character level RNN model. 
+To run the code, enter python char_level.py
+Optional parameters: 
+-lr: learning rate, default = 0.01
+-e: number of epochs, default = 10
+-do: dropout rate: default=0.2
+-hs: hidden layer size in LSTM layer, default = 1000
+-b: batch size, default = 30
+-m: maximum length of character sequence, default = 40
