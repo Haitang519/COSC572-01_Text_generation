@@ -1,38 +1,21 @@
 import os
 import numpy as np
+import random
 from keras.utils import to_categorical
 from keras.initializers import Constant
 from keras.layers import Embedding, LSTM, Dense, TimeDistributed
 from keras.models import Sequential, load_model
-from keras.preprocessing.text import Tokenizer
-from keras.preprocessing.sequence import pad_sequences
-from keras.callbacks import ModelCheckpoint, Callback
+from keras.callbacks import ModelCheckpoint, Callback, LambdaCallback
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
+END = '[end]'
 
 
-class LossHistory(Callback):
-
-    def __init__(self):
-        super().__init__()
-        self.loss_array = np.empty([2, 0])
-
-    def on_train_begin(self, logs=None):
-
-        if os.path.exists('save/loss.npz'):
-            self.loss_array = np.load('save/loss.npz')['loss']
-        else:
-            pass
-
-    def on_epoch_end(self, epoch, logs=None):
-        # append new losses to loss_array
-        loss_train = logs.get('loss')
-        loss_test = logs.get('val_loss')
-
-        loss_new = np.array([[loss_train], [loss_test]])  # 2 x 1 array
-        self.loss_array = np.concatenate((self.loss_array, loss_new), axis=1)
-        # save to disk
-        np.savez_compressed('save/loss.npz', loss=self.loss_array)
+def on_epoch_end():
+    word_model.eval()
+    for i in range(0, 10):
+        prediction = word_model.generate_text("someone like adventure")
+        print(prediction)
 
 
 class WordModel:
@@ -41,11 +24,11 @@ class WordModel:
         self.model = Sequential()
         self.word_index = word_index
         self.sentence_length = length
-        self.embedding_size = 100
-        self.hidden_size = 10
+        self.embedding_size = 200
+        self.hidden_size = 20
         self.dropout = 0.3
-        self.epochs = 3
-        self.batch_size = 10
+        self.epochs = 5
+        self.batch_size = 20
 
     def load_pretrained_embeddings(self, glove_file):
         embeddings_index = {}
@@ -93,31 +76,33 @@ class WordModel:
         print('Batch output shape:', batch_y.shape)
 
     def build(self):
-        embedding_matrix = self.load_pretrained_embeddings('glove.6B.100d.txt')
-        self.model.add(Embedding(len(self.word_index), self.embedding_size, input_length=self.sentence_length,
+        embedding_matrix = self.load_pretrained_embeddings('glove.6B/glove.6B.200d.txt')
+        self.model.add(Embedding(len(self.word_index), self.embedding_size,
                                  embeddings_initializer=Constant(embedding_matrix)))
-        self.model.add(LSTM(self.hidden_size, dropout=self.dropout, return_sequences=True))
+        self.model.add(
+            LSTM(self.hidden_size, dropout=self.dropout, return_sequences=True, kernel_initializer='he_normal'))
+        self.model.add(
+            LSTM(self.hidden_size, dropout=self.dropout, return_sequences=True, kernel_initializer='he_normal'))
         self.model.add(
             TimeDistributed(
-                Dense(len(self.word_index), activation='softmax', input_dim=len(self.word_index), use_bias=True),
+                Dense(len(self.word_index), activation='softmax', input_dim=len(self.word_index), use_bias=True,
+                      kernel_initializer='he_normal'),
                 input_shape=(self.batch_size, self.sentence_length)))
 
         print(self.model.summary())
 
-        self.model.compile(optimizer='adadelta', loss='categorical_crossentropy', metrics=['accuracy'])
+        self.model.compile(optimizer='RMSprop', loss='categorical_crossentropy', metrics=['accuracy'])
 
     def train(self):
-        # recording loss history
-        history = LossHistory()
-
-        # save the model (not just weights) after each epoch
+        # save the model after each epoch
         weights = ModelCheckpoint(filepath='save/model.h5')
+        print_callback = LambdaCallback(on_epoch_end=on_epoch_end)
 
         # Training
         self.model.fit_generator(self.batch_generator_lm(train_data),
                                  epochs=self.epochs,
                                  steps_per_epoch=len(train_data) / self.batch_size,
-                                 callbacks=[history, weights])
+                                 callbacks=[print_callback, weights])
 
     def eval(self):
         # Evaluation
@@ -127,24 +112,70 @@ class WordModel:
     def resume(self):
         self.model = load_model('save/model.h5')
         print(self.model.summary())
+        result = True
+        if not result:
+            self.train()
+        else:
+            while True:
+                print("*************************************************************")
+                print("You can choose or input your seed text to generate movie plot")
+                print("1. a bartender is working at")
+                print("2. the earliest known adaptation of")
+                print("3. the film open with two bandit")
+                print("4. a thug accosts a girl")
+                print("5. the story deal with tom")
+                print("6. Please input your own seed text:")
+                print("7. EXIT")
+                choice = input("Please input your choice:")
+                seed = ''
+                if choice == "1":
+                    seed = 'a bartender is working at'
+                elif choice == "2":
+                    seed = 'the earliest known adaptation of'
+                elif choice == "3":
+                    seed = 'the film open with two bandit'
+                elif choice == "4":
+                    seed = 'a thug accosts a girl'
+                elif choice == "5":
+                    seed = 'the story deal with tom'
+                elif choice == "6":
+                    seed = input("(if the word not in the model word list, it will be changed to [uni]):")
+                elif choice == "7":
+                    break
+                else:
+                    print("Please input a valid choice number!")
+                new_seed = []
+                for w in seed.split():
+                    if w in word_index:
+                        new_seed.append(w)
+                    else:
+                        new_seed.append("[uni]")
+                seed = " ".join(new_seed)
+
+                for i in range(0, 5):
+                    prediction = word_model.generate_text(seed)
+                    print(i, prediction)
+
 
     def generate_text(self, seed_text):
         prediction = seed_text.split(' ')
-        tokenizer = Tokenizer()
-        tokenizer.fit_on_texts(original_data)
-
-        while len(prediction) <= 100:
-            token_list = tokenizer.texts_to_sequences([seed_text])[0]
-            token_list = pad_sequences([token_list], maxlen=self.sentence_length, padding='pre')
-            predicted = self.model.predict_classes(token_list, verbose=0)
-
-            output_word = ""
-            for word, index in tokenizer.word_index.items():
-                if index == predicted:
-                    output_word = word
+        while not (prediction[-1] == END or len(prediction) >= 50):
+            next_token_one_hot = \
+            self.model.predict(np.array([[self.word_index[p] for p in prediction]]), batch_size=1)[0][-1]
+            threshold = random.random()
+            sum = 0
+            next_token = 0
+            for i, p in enumerate(next_token_one_hot):
+                sum += p
+                if sum > threshold:
+                    next_token = i
                     break
-            prediction.append(output_word)
-        return prediction
+            for w, i in self.word_index.items():
+                if i == next_token:
+                    prediction.append(w)
+                    break
+
+        return " ".join(prediction)
 
 
 def load_data():
@@ -154,22 +185,19 @@ def load_data():
     word_dict = eval(f.read())
     f.close()
 
-    return data['train'], data['val'], int(data['length']), data['data'].tolist, word_dict
+    return data['train'], data['val'], int(data['length']), data['data'].tolist(), word_dict
 
 
 if __name__ == "__main__":
     train_data, val_data, length, original_data, word_index = load_data()
     word_model = WordModel(length, word_index)
     word_model.describe_data(word_model.batch_generator_lm(train_data))
+
     # train or resume train
     if not os.path.exists('save/model.h5'):
         print('<==========| Data preprocessing... |==========>')
         word_model.build()
         word_model.train()
-
     else:
         print('<==========| Resume from last training... |==========>')
         word_model.resume()
-
-    word_model.eval()
-    word_model.generate_text("Someone likes adventure")
