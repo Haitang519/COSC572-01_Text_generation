@@ -7,3 +7,10 @@ Optional parameters:
 -hs: hidden layer size in LSTM layer, default = 1000
 -b: batch size, default = 30
 -m: maximum length of character sequence, default = 40
+
+required packages: 
+pandas
+numpy
+tensorflow
+keras
+sklearn
