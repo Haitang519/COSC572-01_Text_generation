@@ -1,6 +1,18 @@
 The word level model use LSTM to predict the next word for a given sequence of words.
-For preprocessing the data, we tokenize raw text into words and recover the words into original form.
-And then we build the model, the model detail and running process are showing below:
+This model contains those following files:
+- save folder: save the preprocessing data and model
+- preprocessing.py: this python file tokenizes raw text into words and recover the words into original form.
+                    To run this file, you can input pyhthon3 preprocessing.py in the command line.
+- contractions.py: this python file contains the common contractions, which is cited by preprocessing.py
+- train.py: this python file used to build and train the model.
+            To run this file, you input python3 train.py in the command line.
+            If the save folder doesn't have model.h5, this program will build a model and start to train it.
+            If the save folder has model.h5, this program will resume the model from the last train.
+            If the variable "result" in the function resume() is True, this model will show the text generation result.
+            If the variable "result" in the function resume() is False, this model will continue to be trained.
+            If you want to change the tunning parameter, you can change them in the function __init__().
+
+The model detail and running process are showing below:
 
 Using TensorFlow backend.
 Batch input shape: (20, 300)
