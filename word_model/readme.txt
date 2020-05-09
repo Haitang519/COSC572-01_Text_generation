@@ -12,6 +12,8 @@ This model contains those following files:
             If the variable "result" in the function resume() is False, this model will continue to be trained.
             If you want to change the tunning parameter, you can change them in the function __init__().
 
+Notes: We also introduced the glove when we did the embedding work in the train.py file. Since this folder is too large, we didn't upload into the Github. You can download it from this link: https://nlp.stanford.edu/projects/glove/
+
 The model detail and running process are showing below:
 
 Using TensorFlow backend.
