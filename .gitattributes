@@ -1,0 +1,1 @@
+word_model/save/data.npz filter=lfs diff=lfs merge=lfs -text
