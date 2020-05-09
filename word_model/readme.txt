@@ -5,7 +5,7 @@ This model contains those following files:
                     To run this file, you can input pyhthon3 preprocessing.py in the command line.
 - contractions.py: this python file contains the common contractions, which is cited by preprocessing.py
 - train.py: this python file used to build and train the model.
-            To run this file, you input python3 train.py in the command line.
+            To run this file, you can input python3 train.py in the command line.
             If the save folder doesn't have model.h5, this program will build a model and start to train it.
             If the save folder has model.h5, this program will resume the model from the last train.
             If the variable "result" in the function resume() is True, this model will show the text generation result.
