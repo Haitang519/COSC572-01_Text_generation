@@ -4,6 +4,7 @@ required packages:
 pytorch(gpu)  
 transformers  
 nltk  
+sklearn  
 numpy  
 pandas  
 
